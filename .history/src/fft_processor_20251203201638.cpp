@@ -1,14 +1,16 @@
 #include "fft_processor.h"
 #include <arduinoFFT.h>
 
-// Static Variables
+// Capable of capturing 3 second intervals at 52Hz
+// i.e., 156 samples
+
+static arduinoFFT FFT;   
 static size_t N;         // Length of of data arrays
 static float FS;         // Sampling frequency
-static ArduinoFFT<double> FFT;
 
 // Signal array pointers
-static double* vReal;
-static double* vImag;
+static float* vReal;     
+static float* vImag;
 
 // Threshold Indicators
 static const float TREMOR_THRESH = 0.05f;       
@@ -19,8 +21,11 @@ void initFFT(size_t nSamples, float fs) {
     FS = fs;
 
     // Allocate memory for signal arrays
-    vReal = new double[N];
-    vImag = new double[N];
+    vReal = new float[N];
+    vImag = new float[N];
+
+    FFT.Windowing(vReal, N, FFT_WIN_TYP_HAMMING, FFT_FORWARD); // Apply windowing
+    FFT.SetResolution(10); // Set FFT resolution
 }
 
 MovementAnalysis analyzeWindow(float* samples, size_t nSamples) {
@@ -36,12 +41,12 @@ MovementAnalysis analyzeWindow(float* samples, size_t nSamples) {
     }
 
     // Perform FFT
-    FFT.windowing(vReal, N, FFT_WIN_TYP_HAMMING, FFT_FORWARD); // smooth abrupt edge cutoffs
-    FFT.compute(vReal, vImag, N, FFT_FORWARD);
-    FFT.complexToMagnitude(vReal, vImag, N); // vReal now contains magnitudes
+    FFT.Windowing(vReal, N, FFT_WIN_TYP_HAMMING, FFT_FORWARD); // smooth abrupt edge cutoffs
+    FFT.Compute(vReal, vImag, N, FFT_FORWARD);
+    FFT.ComplexToMagnitude(vReal, vImag, N); // vReal now contains magnitudes
 
     // Frequency resolution
-    float freqResolution = FS / (float)N;
+    float freqResolution = FS / N;
 
     // Calculate power in tremor (3-5 Hz) and dyskinesia (5-7 Hz) bands
     float tremorPower = 0.0f;
@@ -61,12 +66,14 @@ MovementAnalysis analyzeWindow(float* samples, size_t nSamples) {
         }
     }
 
+
+    // Analysis Results to return
     MovementAnalysis analysis;
 
-    analysis.tremorPower     = tremorPower;
+    analysis.tremorPower = tremorPower;
     analysis.dyskinesiaPower = dyskinesiaPower;
-    analysis.hasTremor       = tremorPower     > (TREMOR_THRESH * totalPower);       
-    analysis.hasDyskinesia   = dyskinesiaPower > (DYSK_THRESH   * totalPower);
+    analysis.hasTremor = (tremorPower > TREMOR_THRESH * totalPower);       
+    analysis.hasDyskinesia = (dyskinesiaPower > DYSK_THRESH * totalPower);
 
     return analysis;
 }
