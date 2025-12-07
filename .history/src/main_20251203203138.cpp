@@ -65,10 +65,9 @@ void runDyskinesiaTest() {
 
 void setup() {
 
-  Serial.println("hello");
   Serial.begin(115200);
   delay(1000);
-
+  
   Serial.println("Starting FFT self-test...");
 
   // set up FFT processor

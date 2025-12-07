@@ -65,7 +65,7 @@ void runDyskinesiaTest() {
 
 void setup() {
 
-  Serial.println("hello");
+  Serial.println("hello")
   Serial.begin(115200);
   delay(1000);
 
