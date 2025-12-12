@@ -19,6 +19,10 @@ unsigned long lastSampleMicros = 0;
 unsigned long lastFFTMillis   = 0;
 constexpr unsigned long SAMPLE_INTERVAL_US = 1000000 / SAMPLE_RATE;
 
+
+float mag_buf[NUM_SAMPLES];  // ONLY ONE BUFFER
+
+
 // ---------------- Helpers ----------------
 void pushSample(float x, float y, float z) {
     ax_buf[writeIndex] = x;
