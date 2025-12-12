@@ -1,3 +1,4 @@
+
 #include <Arduino.h>
 #include <Wire.h>
 // #include <Adafruit_ADXL345_U.h>
@@ -31,12 +32,13 @@ void initFFT(size_t nSamples, float fs) {
     FS = fs;
 
     // Allocate memory for signal arrays
-    vReal = new float[N];
-    vImag = new float[N];
+    constexpr size_t MAX_FFT = 64;
+    static float vReal[MAX_FFT];
+    static float vImag[MAX_FFT];
+    static size_t N;
+
 
 }
-
-
 
 MovementAnalysis analyzeWindow3D_Magnitude(const float* ax,
                                            const float* ay,
