@@ -217,14 +217,10 @@ static void redrawClockTimeOnly() {
 // -----------------
 
 static void drawSeverityBackground() {
-    int band = BAR_H / 4;
-
-    // From bottom up: Rest (gray), Normal (green), Dyskinesia (pink), Tremor (red)
-    tft.fillRect(BAR_X, BAR_Y + 3 * band, BAR_W, band, ILI9341_DARKGREY);
-    tft.fillRect(BAR_X, BAR_Y + 2 * band, BAR_W, band, ILI9341_GREEN);
-    tft.fillRect(BAR_X, BAR_Y + 1 * band, BAR_W, band, COLOR_PINK);
-    tft.fillRect(BAR_X, BAR_Y + 0 * band, BAR_W, band, ILI9341_RED);
+    // Empty bar outline (no 4 colored bands)
+    tft.drawRect(BAR_X, BAR_Y, BAR_W, BAR_H, ILI9341_WHITE);
 }
+
 
 
 
@@ -293,43 +289,61 @@ static void redrawWaveform() {
 }
 
 static void updateSeverityOverlay() {
-    float bandMax = max(lastAnalysis.tremorPower, lastAnalysis.dyskPower);
-    const float MAX_EXPECTED_POWER = 1.0f; // tweak later
-    float intensity = bandMax / MAX_EXPECTED_POWER;
-    if (intensity < 0.0f) intensity = 0.0f;
-    if (intensity > 1.0f) intensity = 1.0f;
+    // Tune this to your expected dominant frequency range
+    const float MAX_HZ = 5.7f;   // map 0..12 Hz -> 0..100% bar
 
-    int filledHeight = (int)(BAR_H * intensity);
+    float target = lastAnalysis.dominantFreq / MAX_HZ;
+    if (target < 0.0f) target = 0.0f;
+    if (target > 1.0f) target = 1.0f;
+
+    // Smooth the rise (prevents jitter)
+    static float level = 0.0f;
+    level = 0.70f * level + 0.30f * target; 
+
+    int filledHeight = (int)(BAR_H * level);
     int bottom = BAR_Y + BAR_H;
 
-    drawSeverityBackground();
+    // Clear inside of bar (keep outline)
+    tft.fillRect(BAR_X + 1, BAR_Y + 1, BAR_W - 2, BAR_H - 2, ILI9341_BLACK);
 
+    // Fill from bottom up, using current classification color
     uint16_t c = colorForState(currentState);
-    tft.fillRect(BAR_X, bottom - filledHeight, BAR_W, filledHeight, c);
+    tft.fillRect(BAR_X + 1, bottom - filledHeight, BAR_W - 2, filledHeight, c);
 }
+
 
 // -----------------
 // Classification
 // -----------------
 
 static SymptomState classify(const AnalysisResult &r) {
-    const float POWER_THRESH = 0.2f;
-    const float REST_THRESH  = 0.05f;
+    const float REST_RMS = 0.05f;     // tune later with real data
+    const float ACTIVE_RMS = 0.12f;   // below this but above REST -> NORMAL
 
-    float bandMax = max(r.tremorPower, r.dyskPower);
-
-    if (r.overallRms < REST_THRESH && bandMax < POWER_THRESH) {
+    // If there’s barely any movement, call it REST
+    if (r.overallRms < REST_RMS) {
         return STATE_REST;
     }
-    if (bandMax < POWER_THRESH) {
-        return STATE_NORMAL;
-    }
-    if (r.tremorPower > r.dyskPower) {
+
+    float f = r.dominantFreq;
+
+    // Band-based classification (per assignment spec)
+    if (f >= 3.0f && f < 5.0f) {
         return STATE_TREMOR;
-    } else {
+    }
+    if (f >= 5.0f && f <= 7.0f) {
         return STATE_DYSKINESIA;
     }
+
+    // Otherwise: movement exists but not in the defined rhythmic bands
+    if (r.overallRms < ACTIVE_RMS) {
+        return STATE_NORMAL;
+    } else {
+        // “Active but not in 3–7 Hz” — safest label is Normal unless your spec adds more states
+        return STATE_NORMAL;
+    }
 }
+
 
 // -----------------
 // Public API
