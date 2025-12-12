@@ -433,6 +433,10 @@ void uiSetLatestAnalysis(const AnalysisResult &result) {
 
         tft.setTextColor(ILI9341_WHITE);
     }
+    else if (currentScreen == SCREEN_CLOCK) {
+        // NEW: update the clock screen status box
+        redrawClockStatusOnly();
+    }
 }
 
 void uiPushSample(float sample) {
@@ -441,4 +445,16 @@ void uiPushSample(float sample) {
 
     waveIndex = (waveIndex + 1) % WAVE_SAMPLES;
     waveBuffer[waveIndex] = sample;
+}
+
+static void redrawClockStatusOnly() {
+    // Clear just the status VALUE line area
+    tft.fillRect(205, 35, 110 - 10, 16, ILI9341_BLACK);
+
+    tft.setTextSize(2);
+    tft.setTextColor(colorForState(currentState), ILI9341_BLACK);
+    tft.setCursor(205, 35);
+    tft.print(stateToString(currentState));
+
+    tft.setTextColor(ILI9341_WHITE);
 }

@@ -39,3 +39,5 @@ void uiSetLatestAnalysis(const AnalysisResult &result);
 // sensor code can call this occasionally
 // with the most recent "overall motion" sample.
 void uiPushSample(float sample);
+
+static void redrawClockStatusOnly();
