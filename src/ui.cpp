@@ -10,13 +10,12 @@
 // Hardware objects
 // -----------------
 
+static const int TFT_DC = 10;
+static const int TFT_CS = 9;
 
-static const int TFT_DC  = 10;
-static const int TFT_CS  = 9;
 static Adafruit_ILI9341 tft(TFT_CS, TFT_DC);
-
-// Touch controller (TSC2007 on FeatherWing V2)
 static Adafruit_TSC2007 touch;
+
 // -----------------
 // UI state
 // -----------------
@@ -29,13 +28,13 @@ enum UiScreen {
 static UiScreen currentScreen = SCREEN_CLOCK;
 
 // Clock state
-static ClockTime currentTime = { 6, 0, 0 };   // start at 06:00:00
+static ClockTime currentTime = { 6, 0, 0 };   // demo start time
 static unsigned long lastTickMs = 0;
 static ClockTime lastDrawnTime = { 255, 255, 255 }; // force first draw
 
 // Symptom / analysis state
 static SymptomState currentState = STATE_REST;
-static AnalysisResult lastAnalysis = {0,0,0,0};
+static AnalysisResult lastAnalysis = {0, 0, 0, 0};
 
 // Waveform buffer for graph
 static const int WAVE_SAMPLES = 64;
@@ -46,24 +45,47 @@ static int waveIndex = 0;
 static const int SCREEN_W = 320;
 static const int SCREEN_H = 240;
 
-// Live screen geometry
-static const int GRAPH_X = 60;
-static const int GRAPH_Y = 20;
-static const int GRAPH_W = 200;
-static const int GRAPH_H = 200;
+// Live screen geometry (shorter chart + bottom info panel)
 
+// Left severity bar (thin)
 static const int BAR_X = 10;
 static const int BAR_Y = 20;
-static const int BAR_W = 40;
+static const int BAR_W = 14;
 static const int BAR_H = 200;
 
-static const int STOP_X = 220;
-static const int STOP_Y = 190;
-static const int STOP_W = 90;
-static const int STOP_H = 40;
+// Layout spacing
+static const int GAP = 8;
+static const int RIGHT_MARGIN = 10;
+static const int BOTTOM_MARGIN = 10;
+
+// Chart is full width to the right, but shorter height
+static const int GRAPH_X = BAR_X + BAR_W + GAP;
+static const int GRAPH_Y = 20;
+static const int GRAPH_W = 320 - GRAPH_X - RIGHT_MARGIN;
+static const int GRAPH_H = 120;   // <-- shorter chart height (tune: 100–140)
+
+// Bottom info panel (free space under chart)
+static const int INFO_X = GRAPH_X;
+static const int INFO_Y = GRAPH_Y + GRAPH_H + GAP;
+static const int INFO_W = GRAPH_W;
+static const int INFO_H = 240 - INFO_Y - BOTTOM_MARGIN;
 
 // Pink color (approx) in 565
-#define COLOR_PINK 0xF81F  // magenta-ish
+#define COLOR_PINK 0xF81F
+
+// -----------------
+// Touch calibration
+// -----------------
+// These ranges are typical-ish for resistive touch controllers but WILL vary.
+// The clamping logic makes it usable even if slightly off.
+// If touch still feels “offset”, we can tighten these after you give 2 corner readings.
+static const int16_t TS_MINX = 200;
+static const int16_t TS_MAXX = 3800;
+static const int16_t TS_MINY = 200;
+static const int16_t TS_MAXY = 3800;
+
+// Pressure threshold: 10 is often too sensitive/noisy
+static const int16_t TOUCH_Z_THRESHOLD = 80;
 
 // -----------------
 // Utility helpers
@@ -79,12 +101,13 @@ static uint16_t colorForState(SymptomState s) {
     }
 }
 
+// Short labels so they never wrap in the right panel
 static const char* stateToString(SymptomState s) {
     switch (s) {
-        case STATE_REST:       return "Resting";
-        case STATE_NORMAL:     return "Normal";
-        case STATE_DYSKINESIA: return "Dyskinesia";
-        case STATE_TREMOR:     return "Tremor";
+        case STATE_REST:       return "REST";
+        case STATE_NORMAL:     return "NORM";
+        case STATE_DYSKINESIA: return "DYSK";
+        case STATE_TREMOR:     return "TREM";
         default:               return "?";
     }
 }
@@ -93,7 +116,6 @@ static void formatClock(char* buf, const ClockTime &t) {
     // "HH:MM"
     sprintf(buf, "%02d:%02d", t.hours, t.minutes);
 }
-
 
 static void tickClock() {
     unsigned long now = millis();
@@ -119,20 +141,29 @@ static void tickClock() {
 // Touch handling
 // -----------------
 
-
 static bool getTouch(int16_t &x, int16_t &y) {
     TS_Point p = touch.getPoint();
 
-    // No touch -> pressure is near zero
-    if (p.z < 10) return false;
+    if (p.z < TOUCH_Z_THRESHOLD) return false;
 
-    // Map raw values to screen coordinates
-    x = map(p.y, 3800, 200, 0, 320);
-    y = map(p.x, 200, 3800, 0, 240);
+    // 🔍 DEBUG PRINT — THIS IS THE IMPORTANT PART
+    Serial.print("RAW x="); Serial.print(p.x);
+    Serial.print(" y=");    Serial.print(p.y);
+    Serial.print(" z=");    Serial.println(p.z);
 
+    int16_t px = map(p.y, TS_MAXY, TS_MINY, 0, tft.width());
+    int16_t py = map(p.x, TS_MINX, TS_MAXX, 0, tft.height());
+
+    // Clamp
+    if (px < 0) px = 0;
+    if (py < 0) py = 0;
+    if (px >= tft.width())  px = tft.width() - 1;
+    if (py >= tft.height()) py = tft.height() - 1;
+
+    x = px;
+    y = py;
     return true;
 }
-
 
 
 // -----------------
@@ -151,32 +182,34 @@ static void drawClockScreenFull() {
     tft.setCursor(205, 15);
     tft.print("Status");
 
+    // Status value (with background so it overwrites cleanly)
+    tft.setTextColor(colorForState(currentState), ILI9341_BLACK);
     tft.setCursor(205, 35);
-    tft.setTextColor(colorForState(currentState));
     tft.print(stateToString(currentState));
+    tft.setTextColor(ILI9341_WHITE);
 
     // Big clock in center
     char buf[9];
     formatClock(buf, currentTime);
 
     tft.setTextSize(5);
-    tft.setTextColor(ILI9341_WHITE);
+    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
     tft.setCursor(70, 100);
     tft.print(buf);
+    tft.setTextColor(ILI9341_WHITE);
 }
 
-// Called when only time changed; redraw just the clock text
+// Called when time changed; redraw just the clock text (no flicker)
 static void redrawClockTimeOnly() {
     char buf[9];
     formatClock(buf, currentTime);
 
-    // Clear previous time area (rough bounding box)
-    tft.fillRect(60, 90, 200, 60, ILI9341_BLACK);
-
     tft.setTextSize(5);
-    tft.setTextColor(ILI9341_WHITE);
+    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
     tft.setCursor(70, 100);
     tft.print(buf);
+
+    tft.setTextColor(ILI9341_WHITE);
 }
 
 // -----------------
@@ -187,24 +220,13 @@ static void drawSeverityBackground() {
     int band = BAR_H / 4;
 
     // From bottom up: Rest (gray), Normal (green), Dyskinesia (pink), Tremor (red)
-    tft.fillRect(BAR_X, BAR_Y + 3*band, BAR_W, band, ILI9341_DARKGREY);
-    tft.fillRect(BAR_X, BAR_Y + 2*band, BAR_W, band, ILI9341_GREEN);
-    tft.fillRect(BAR_X, BAR_Y + 1*band, BAR_W, band, COLOR_PINK);
-    tft.fillRect(BAR_X, BAR_Y + 0*band, BAR_W, band, ILI9341_RED);
+    tft.fillRect(BAR_X, BAR_Y + 3 * band, BAR_W, band, ILI9341_DARKGREY);
+    tft.fillRect(BAR_X, BAR_Y + 2 * band, BAR_W, band, ILI9341_GREEN);
+    tft.fillRect(BAR_X, BAR_Y + 1 * band, BAR_W, band, COLOR_PINK);
+    tft.fillRect(BAR_X, BAR_Y + 0 * band, BAR_W, band, ILI9341_RED);
 }
 
-static void drawStopButton(bool pressed = false) {
-    uint16_t border = ILI9341_WHITE;
-    uint16_t fill   = pressed ? ILI9341_RED : ILI9341_BLACK;
 
-    tft.drawRoundRect(STOP_X, STOP_Y, STOP_W, STOP_H, 5, border);
-    tft.fillRoundRect(STOP_X + 2, STOP_Y + 2, STOP_W - 4, STOP_H - 4, 5, fill);
-
-    tft.setTextSize(2);
-    tft.setTextColor(ILI9341_WHITE);
-    tft.setCursor(STOP_X + 20, STOP_Y + 12);
-    tft.print("Stop");
-}
 
 static void drawLiveScreenFull() {
     tft.fillScreen(ILI9341_BLACK);
@@ -213,36 +235,39 @@ static void drawLiveScreenFull() {
     // Left severity bar background
     drawSeverityBackground();
 
-    // Graph box
+    // ---- Graph (shorter, demonstrates waveform) ----
     tft.drawRect(GRAPH_X, GRAPH_Y, GRAPH_W, GRAPH_H, ILI9341_WHITE);
+    tft.fillRect(GRAPH_X + 1, GRAPH_Y + 1, GRAPH_W - 2, GRAPH_H - 2, ILI9341_BLACK);
 
-    // Status panel on right
+    // ---- Bottom info panel (status + text) ----
+    tft.drawRect(INFO_X, INFO_Y, INFO_W, INFO_H, ILI9341_WHITE);
+    tft.fillRect(INFO_X + 1, INFO_Y + 1, INFO_W - 2, INFO_H - 2, ILI9341_BLACK);
+
+    // Status line
     tft.setTextSize(2);
-    tft.setTextColor(ILI9341_WHITE);
-    tft.setCursor(200, 10);
+    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+
+    tft.setCursor(INFO_X + 8, INFO_Y + 8);
     tft.print("Status:");
 
-    tft.setCursor(200, 35);
-    tft.setTextColor(colorForState(currentState));
+    tft.setTextColor(colorForState(currentState), ILI9341_BLACK);
+    tft.setCursor(INFO_X + 95, INFO_Y + 8);
     tft.print(stateToString(currentState));
 
-    // Dominant freq text
-    tft.setCursor(200, 60);
-    tft.setTextColor(ILI9341_WHITE);
+    // Frequency line
+    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    tft.setCursor(INFO_X + 8, INFO_Y + 34);
     tft.print("Freq:");
 
-    tft.setCursor(200, 80);
+    tft.setCursor(INFO_X + 95, INFO_Y + 34);
     tft.print(lastAnalysis.dominantFreq, 1);
     tft.print(" Hz");
 
-    // Stop button
-    drawStopButton();
-
-    // Clear waveform area
-    tft.fillRect(GRAPH_X + 1, GRAPH_Y + 1, GRAPH_W - 2, GRAPH_H - 2, ILI9341_BLACK);
+    // Restore default text mode
+    tft.setTextColor(ILI9341_WHITE);
 }
 
-// Draw waveform from waveBuffer[]
+
 static void redrawWaveform() {
     // Clear inside of graph
     tft.fillRect(GRAPH_X + 1, GRAPH_Y + 1, GRAPH_W - 2, GRAPH_H - 2, ILI9341_BLACK);
@@ -267,7 +292,6 @@ static void redrawWaveform() {
     }
 }
 
-// Update severity overlay based on currentState + lastAnalysis
 static void updateSeverityOverlay() {
     float bandMax = max(lastAnalysis.tremorPower, lastAnalysis.dyskPower);
     const float MAX_EXPECTED_POWER = 1.0f; // tweak later
@@ -278,7 +302,6 @@ static void updateSeverityOverlay() {
     int filledHeight = (int)(BAR_H * intensity);
     int bottom = BAR_Y + BAR_H;
 
-    // Redraw background then overlay
     drawSeverityBackground();
 
     uint16_t c = colorForState(currentState);
@@ -308,22 +331,22 @@ static SymptomState classify(const AnalysisResult &r) {
     }
 }
 
-
+// -----------------
+// Public API
+// -----------------
 
 void uiBegin() {
     tft.begin();
-    tft.setRotation(1);  // landscape: 320x240
+    tft.setRotation(1);       // landscape
+    tft.setTextWrap(false);   // CRITICAL: prevent weird wrapping like ":OP" or vertical "ng"
 
     Wire.begin();
 
     if (!touch.begin()) {
         Serial.println("TSC2007 not found!");
-        while (1) {
-            delay(10);  // stop if touch is missing
-        }
+        while (1) { delay(10); }
     }
 
-    // Clear waveform buffer
     for (int i = 0; i < WAVE_SAMPLES; ++i) {
         waveBuffer[i] = 0.0f;
     }
@@ -331,46 +354,49 @@ void uiBegin() {
     currentScreen = SCREEN_CLOCK;
     drawClockScreenFull();
     lastDrawnTime = currentTime;
-
-
 }
 
 void uiUpdate() {
     tickClock();
 
+    // Tap debounce (edge-trigger)
+    static bool wasTouched = false;
+
     int16_t tx, ty;
-    if (getTouch(tx, ty)) {
+    bool isTouched = getTouch(tx, ty);
+
+    if (isTouched && !wasTouched) {
         if (currentScreen == SCREEN_CLOCK) {
-            // Any touch -> go to live screen
             currentScreen = SCREEN_LIVE;
             drawLiveScreenFull();
         } else if (currentScreen == SCREEN_LIVE) {
-            // Check Stop button
-            if (tx >= STOP_X && tx <= STOP_X + STOP_W &&
-                ty >= STOP_Y && ty <= STOP_Y + STOP_H) {
-
-                drawStopButton(true);
-                delay(100);
-                drawStopButton(false);
-
-                // Back to clock screen
-                currentScreen = SCREEN_CLOCK;
-                drawClockScreenFull();
-                lastDrawnTime = currentTime;
-            }
+            // Any tap -> back to clock screen
+            currentScreen = SCREEN_CLOCK;
+            drawClockScreenFull();
+            lastDrawnTime = currentTime;
         }
     }
 
+    wasTouched = isTouched;
+
     if (currentScreen == SCREEN_CLOCK) {
-        // Only redraw when seconds changed
-        if (currentTime.seconds != lastDrawnTime.seconds) {
+        // Only redraw when what we DISPLAY changes (HH:MM)
+        if (currentTime.minutes != lastDrawnTime.minutes ||
+            currentTime.hours   != lastDrawnTime.hours) {
             lastDrawnTime = currentTime;
             redrawClockTimeOnly();
         }
     } else if (currentScreen == SCREEN_LIVE) {
-        // For now, just redraw waveform + severity every frame.
-        redrawWaveform();
-        updateSeverityOverlay();
+        // Throttle graph a bit so it doesn’t hog SPI
+        static unsigned long lastGraphMs = 0;
+        const unsigned long GRAPH_PERIOD_MS = 50; // ~20 Hz
+
+        unsigned long now = millis();
+        if (now - lastGraphMs >= GRAPH_PERIOD_MS) {
+            lastGraphMs = now;
+            redrawWaveform();
+            updateSeverityOverlay();
+        }
     }
 }
 
@@ -379,26 +405,23 @@ void uiSetLatestAnalysis(const AnalysisResult &result) {
     currentState = classify(result);
 
     if (currentScreen == SCREEN_LIVE) {
-        // Update text in Status panel
+        // Update status
         tft.setTextSize(2);
-
-        // Clear & rewrite classification line
-        tft.fillRect(200, 35, 110, 16, ILI9341_BLACK);
+        tft.setTextColor(colorForState(currentState), ILI9341_BLACK);
         tft.setCursor(200, 35);
-        tft.setTextColor(colorForState(currentState));
         tft.print(stateToString(currentState));
 
-        // Clear & rewrite frequency line
-        tft.fillRect(200, 80, 110, 16, ILI9341_BLACK);
+        // Update freq
+        tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
         tft.setCursor(200, 80);
-        tft.setTextColor(ILI9341_WHITE);
         tft.print(lastAnalysis.dominantFreq, 1);
         tft.print(" Hz");
+
+        tft.setTextColor(ILI9341_WHITE);
     }
 }
 
 void uiPushSample(float sample) {
-    // Clamp sample to [-1, 1] so we don't go crazy on the graph
     if (sample < -1.0f) sample = -1.0f;
     if (sample >  1.0f) sample =  1.0f;
 
