@@ -66,9 +66,9 @@ void runDyskinesiaTest() {
 void setup() {
 
   Serial.println("hello");
-  Serial.begin(115200);
+  Serial.begin(57600);
   while(!Serial); // wait for serial port to connect
-  //delay(1000);
+  delay(500);
 
   Serial.println("Starting FFT self-test...");
 

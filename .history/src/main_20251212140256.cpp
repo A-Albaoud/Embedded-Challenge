@@ -68,7 +68,7 @@ void setup() {
   Serial.println("hello");
   Serial.begin(115200);
   while(!Serial); // wait for serial port to connect
-  //delay(1000);
+  delay(500);
 
   Serial.println("Starting FFT self-test...");
 

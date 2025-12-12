@@ -31,13 +31,13 @@ void runTremorTest() {
   // 3. Print results
   Serial.print("tremorPower = ");
   Serial.println(result.tremorPower, 6);
-  Serial.print("dyskinesiaPower = ");
-  Serial.println(result.dyskinesiaPower, 6);
-  Serial.print("hasTremor = ");
-  Serial.println(result.hasTremor ? "true" : "false");
-  Serial.print("hasDyskinesia = ");
-  Serial.println(result.hasDyskinesia ? "true" : "false");
-  Serial.println();
+  // Serial.print("dyskinesiaPower = ");
+  // Serial.println(result.dyskinesiaPower, 6);
+  // Serial.print("hasTremor = ");
+  // Serial.println(result.hasTremor ? "true" : "false");
+  // Serial.print("hasDyskinesia = ");
+  // Serial.println(result.hasDyskinesia ? "true" : "false");
+  // Serial.println();
 }
 
 void runDyskinesiaTest() {
@@ -52,13 +52,13 @@ void runDyskinesiaTest() {
   // 3. Print results
   Serial.print("tremorPower = ");
   Serial.println(result.tremorPower, 6);
-  Serial.print("dyskinesiaPower = ");
-  Serial.println(result.dyskinesiaPower, 6);
-  Serial.print("hasTremor = ");
-  Serial.println(result.hasTremor ? "true" : "false");
-  Serial.print("hasDyskinesia = ");
-  Serial.println(result.hasDyskinesia ? "true" : "false");
-  Serial.println();
+  // Serial.print("dyskinesiaPower = ");
+  // Serial.println(result.dyskinesiaPower, 6);
+  // Serial.print("hasTremor = ");
+  // Serial.println(result.hasTremor ? "true" : "false");
+  // Serial.print("hasDyskinesia = ");
+  // Serial.println(result.hasDyskinesia ? "true" : "false");
+  // Serial.println();
 }
 
 
@@ -68,7 +68,7 @@ void setup() {
   Serial.println("hello");
   Serial.begin(115200);
   while(!Serial); // wait for serial port to connect
-  //delay(1000);
+  delay(500);
 
   Serial.println("Starting FFT self-test...");
 

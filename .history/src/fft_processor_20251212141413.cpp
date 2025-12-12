@@ -23,8 +23,6 @@ void initFFT(size_t nSamples, float fs) {
     vImag = new double[N];
 }
 
-
-
 MovementAnalysis analyzeWindow3D_Magnitude(const float* ax,
                                            const float* ay,
                                            const float* az,
@@ -35,11 +33,27 @@ MovementAnalysis analyzeWindow3D_Magnitude(const float* ax,
             float x = ax[i];
             float y = ay[i];
             float z = az[i];
-            vReal[i] = x*x + y*y + z*z;   // magnitude
+            vReal[i] = x*x + y*y + z*z;   // squared magnitude
         } else {
             vReal[i] = 0.0f;
         }
         vImag[i] = 0.0f;
+    }
+
+    // then run your usual FFT pipeline…
+}
+
+
+MovementAnalysis analyzeWindow(float* samples, size_t nSamples) {
+
+    // Copy samples to data arrays
+    for (size_t i = 0; i < N; i++) {
+        if (i < nSamples) {
+            vReal[i] = samples[i]; // copy over available samples
+        } else {
+            vReal[i] = 0.0f;       // zero-pad if fewer samples
+        }
+        vImag[i] = 0.0f; 
     }
 
     // Perform FFT
