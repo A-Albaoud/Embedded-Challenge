@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
-// #include <Adafruit_ADXL345_U.h>
+#include <Adafruit_ADXL345_U.h>
 #include "fft_processing.h"
 #include <arduinoFFT.h>
 
@@ -38,21 +38,16 @@ void initFFT(size_t nSamples, float fs) {
 
 
 
-MovementAnalysis analyzeWindow3D_Magnitude(const float* ax,
-                                           const float* ay,
-                                           const float* az,
-                                           size_t nSamples) {
-    // Write magnitude directly into vReal; reuse vImag as usual
+MovementAnalysis analyzeWindow(float* samples, size_t nSamples) {
+
+    // Copy samples to data arrays
     for (size_t i = 0; i < N; i++) {
         if (i < nSamples) {
-            float x = ax[i];
-            float y = ay[i];
-            float z = az[i];
-            vReal[i] = x*x + y*y + z*z;   // squared magnitude
+            vReal[i] = samples[i]; // copy over available samples
         } else {
-            vReal[i] = 0.0;
+            vReal[i] = 0.0f;       // zero-pad if fewer samples
         }
-        vImag[i] = 0.0;
+        vImag[i] = 0.0f; 
     }
 
     // Perform FFT

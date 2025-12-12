@@ -11,10 +11,7 @@ struct MovementAnalysis {
 };
 
 void initFFT(size_t nSamples, float fs);
-MovementAnalysis analyzeWindow3D_Magnitude(const float* ax,
-                                           const float* ay,
-                                           const float* az,
-                                           size_t nSamples);
+MovementAnalysis analyzeWindow(float* samples, size_t nSamples);
 
 size_t fftSize();
 float fftSamplingFreq();
