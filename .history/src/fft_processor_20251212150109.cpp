@@ -16,9 +16,15 @@ static const float TREMOR_THRESH = 0.05f;
 static const float DYSK_THRESH = 0.05f;   
 
 void initFFT(size_t nSamples, float fs) {
-    N  = (nSamples > MAX_N) ? MAX_N : nSamples;
+    if (nSamples > MAX_N) {
+        // clamp or handle error
+        N = MAX_N;
+    } else {
+        N = nSamples;
+    }
     FS = fs;
 }
+
 
 
 MovementAnalysis analyzeWindow3D_Magnitude(const float* ax,
@@ -27,14 +33,11 @@ MovementAnalysis analyzeWindow3D_Magnitude(const float* ax,
                                            size_t nSamples) {
     // Write magnitude directly into vReal; reuse vImag as usual
     for (size_t i = 0; i < N; i++) {
-        if (i < nSamples) {
-            float x = ax[i];
-            float y = ay[i];
-            float z = az[i];
-            vReal[i] = x*x + y*y + z*z;   // squared magnitude
-        } else {
-            vReal[i] = 0.0;
-        }
+        float x = readAccelX();
+        float y = readAccelY();
+        float z = readAccelZ();
+
+        vReal[i] = x*x + y*y + z*z;   // squared magnitude
         vImag[i] = 0.0;
     }
 

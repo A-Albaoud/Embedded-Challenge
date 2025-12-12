@@ -2,23 +2,27 @@
 #include <arduinoFFT.h>
 
 // Static Variables
-static const size_t MAX_N = 128; 
 static size_t N;         // Length of of data arrays
 static float FS;         // Sampling frequency
 static ArduinoFFT<double> FFT;
 
 // Signal array pointers
-static double vReal[MAX_N];
-static double vImag[MAX_N];
+static double* vReal;
+static double* vImag;
 
 // Threshold Indicators
 static const float TREMOR_THRESH = 0.05f;       
 static const float DYSK_THRESH = 0.05f;   
 
 void initFFT(size_t nSamples, float fs) {
-    N  = (nSamples > MAX_N) ? MAX_N : nSamples;
+    N = nSamples;
     FS = fs;
+
+    // Allocate memory for signal arrays
+    vReal = new double[N];
+    vImag = new double[N];
 }
+
 
 
 MovementAnalysis analyzeWindow3D_Magnitude(const float* ax,
@@ -31,11 +35,11 @@ MovementAnalysis analyzeWindow3D_Magnitude(const float* ax,
             float x = ax[i];
             float y = ay[i];
             float z = az[i];
-            vReal[i] = x*x + y*y + z*z;   // squared magnitude
+            vReal[i] = x*x + y*y + z*z;   // magnitude
         } else {
-            vReal[i] = 0.0;
+            vReal[i] = 0.0f;
         }
-        vImag[i] = 0.0;
+        vImag[i] = 0.0f;
     }
 
     // Perform FFT
