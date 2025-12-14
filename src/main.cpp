@@ -85,7 +85,7 @@ static inline AnalysisResult buildStableUiResult(const MovementAnalysis& ma, boo
   float candClassHz = 0.0f;
 
   if (!isRest && ma.rhythmic37) {
-    const float MARGIN = 1.10f;
+    const float MARGIN = 1.15f;
     if (ma.dyskinesiaPower > ma.tremorPower * MARGIN) {
       candClassHz = 6.0f;
     } else if (ma.tremorPower > ma.dyskinesiaPower * MARGIN) {
@@ -200,8 +200,8 @@ void loop() {
       analyzeWindow3D_Magnitude_Q10(axBuf, ayBuf, azBuf, FFT_N, ACC_SCALE_I);
 
     // REST hysteresis tuned for hand-held stillness (faster return to rest)
-    const float REST_ENTER_RMS = 0.110f;
-    const float REST_EXIT_RMS  = 0.125f;
+    const float REST_ENTER_RMS = 0.115f;
+    const float REST_EXIT_RMS  = 0.140f;
 
     const int32_t ENTER_Q10 = (int32_t)(REST_ENTER_RMS * (float)ACC_SCALE_I + 0.5f);
     const int32_t EXIT_Q10  = (int32_t)(REST_EXIT_RMS  * (float)ACC_SCALE_I + 0.5f);
